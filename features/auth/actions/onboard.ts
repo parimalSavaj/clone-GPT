@@ -18,20 +18,38 @@ export async function onBoard() {
 
     const email = clerkUser.emailAddresses[0]?.emailAddress ?? null;
 
-    return prisma.user.upsert({
-        where: { clerkId: clerkUser.id },
-        create: {
+    // Find if a user record already exists with this clerkId
+    let user = await prisma.user.findUnique({
+        where: { clerkId: clerkUser.id }
+    });
+
+    // If not found by clerkId, search by email to resolve potential unique constraint conflicts
+    if (!user && email) {
+        user = await prisma.user.findUnique({
+            where: { email }
+        });
+    }
+
+    if (user) {
+        return prisma.user.update({
+            where: { id: user.id },
+            data: {
+                clerkId: clerkUser.id,
+                email,
+                firstName: clerkUser.firstName,
+                lastName: clerkUser.lastName,
+                imageUrl: clerkUser.imageUrl
+            }
+        });
+    }
+
+    return prisma.user.create({
+        data: {
             clerkId: clerkUser.id,
             email,
             firstName: clerkUser.firstName,
             lastName: clerkUser.lastName,
             imageUrl: clerkUser.imageUrl
-        },
-        update: {
-            email,
-            firstName: clerkUser.firstName,
-            lastName: clerkUser.lastName,
-            imageUrl: clerkUser.imageUrl
         }
-    })
+    });
 }
