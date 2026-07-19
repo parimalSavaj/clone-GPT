@@ -66,6 +66,13 @@ model Message {
   parts          Json?         
   metadata       Json? 
 
+  // Branching fields
+  parentId       String?
+  parent         Message?      @relation("MessageToMessage", fields: [parentId], references: [id], onDelete: Cascade)
+  children       Message[]     @relation("MessageToMessage")
+  branchName     String?
+  isMainBranch   Boolean       @default(true)
+
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   toolCalls    ToolCall[]
 
@@ -73,6 +80,7 @@ model Message {
   updatedAt DateTime @updatedAt
 
   @@index([conversationId, createdAt(sort: Desc)])
+  @@index([parentId])
 }
 
 enum ToolCallStatus {

@@ -3,6 +3,7 @@
 import { isTextUIPart, type UIMessage } from "ai";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { getActiveBranch, getMessagePath } from "@/features/messages/actions/branch-queries";
 
 /** Extracts plain text from an AI SDK `UIMessage` by joining all text parts. */
 function getMessageText(message: UIMessage) {
@@ -32,14 +33,17 @@ function toUIMessageParts(
  * @returns Messages ordered oldest to newest, ready for `useChat`.
  */
 export async function loadChatMessages(
-  conversationId: string
+  conversationId: string,
+  branchMessageId?: string
 ): Promise<UIMessage[]> {
-  const rows = await prisma.message.findMany({
-    where: { conversationId },
-    orderBy: { createdAt: "asc" },
-  });
+  let path: any[] = [];
+  if (branchMessageId) {
+    path = await getMessagePath(branchMessageId);
+  } else {
+    path = await getActiveBranch(conversationId);
+  }
 
-  return rows.map((row) => ({
+  return path.map((row) => ({
     id: row.id,
     role: row.role === "ASSISTANT" ? "assistant" : "user",
     parts: toUIMessageParts(row.parts, row.content),
@@ -64,11 +68,17 @@ export async function saveChatMessages(
 ) {
   const { updateTitle = true } = options;
 
-  for (const message of messages) {
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
     if (message.role === "system") continue;
 
     const content = getMessageText(message);
     const role = message.role === "assistant" ? "ASSISTANT" : "USER";
+
+    let parentId: string | null = null;
+    if (i > 0) {
+      parentId = messages[i - 1].id;
+    }
 
     await prisma.message.upsert({
       where: { id: message.id },
@@ -79,6 +89,7 @@ export async function saveChatMessages(
         status: "COMPLETE",
         content,
         parts: message.parts as Prisma.InputJsonValue,
+        parentId,
       },
       update: {
         content,

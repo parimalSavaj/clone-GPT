@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { ChatEmpty } from './chat-empty';
 import { ChatMessages } from './chat-messages';
 import { ChatComposer } from './chat-composer';
+import { useBranchTree } from '@/features/messages';
 
 type ConversationViewProps = {
     conversationId: string;
@@ -21,6 +22,7 @@ type ConversationViewProps = {
 export const ConversationView = ({ conversationId, initialMessages }: ConversationViewProps) => {
     const queryClient = useQueryClient();
     const { data: conversations } = useConversations();
+    const { data: allMessages = [] } = useBranchTree(conversationId);
 
     const transport = useMemo(() => new DefaultChatTransport({
         api: "/api/chat",
@@ -31,7 +33,7 @@ export const ConversationView = ({ conversationId, initialMessages }: Conversati
         })
     }), []);
 
-    const { messages, sendMessage, status } = useChat({
+    const { messages, sendMessage, status, regenerate } = useChat({
         id: conversationId,
         messages: initialMessages,
         transport,
@@ -43,7 +45,23 @@ export const ConversationView = ({ conversationId, initialMessages }: Conversati
         onError: (error) => {
             toast.error(error.message);
         },
-    })
+    });
+
+    const triggeredRef = React.useRef<string | null>(null);
+
+    // Auto-trigger assistant reply if the thread ends with a USER message (e.g. branch creation remount)
+    React.useEffect(() => {
+        const lastMsg = messages.at(-1);
+        if (
+            lastMsg && 
+            lastMsg.role === "user" && 
+            status === "ready" && 
+            triggeredRef.current !== lastMsg.id
+        ) {
+            triggeredRef.current = lastMsg.id;
+            void regenerate();
+        }
+    }, [messages, status, regenerate]);
     
     const title =
       conversations?.find((item) => item.id === conversationId)?.title ?? "Chat";
@@ -59,7 +77,12 @@ export const ConversationView = ({ conversationId, initialMessages }: Conversati
             {messages.length === 0 ? (
                 <ChatEmpty />
             ) : (
-                <ChatMessages messages={messages} status={status} />
+                <ChatMessages 
+                    messages={messages} 
+                    status={status} 
+                    allMessages={allMessages}
+                    conversationId={conversationId}
+                />
             )}
 
             <ChatComposer

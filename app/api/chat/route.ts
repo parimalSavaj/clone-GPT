@@ -40,16 +40,20 @@ export async function POST(req: Request) {
         return new Response("Conversation not found", { status: 404 });
     }
 
-    const previousMessages = await loadChatMessages(id);
+    // Check if user message is already saved in database (i.e. was created as a branch)
+    const dbMsg = await prisma.message.findUnique({
+        where: { id: message.id }
+    });
 
-    const alreadySaved = previousMessages.some(
-        (storedMessage) => storedMessage.id === message.id
-    );
-
-    const messages = alreadySaved ? previousMessages : [...previousMessages, message];
-
-    if (!alreadySaved) {
-        await saveChatMessages(id, [message]);
+    let messages: UIMessage[] = [];
+    if (dbMsg) {
+        // Load the exact branch path ending at this user message
+        messages = await loadChatMessages(id, message.id);
+    } else {
+        // Load the active path, append the new user message, and save it
+        const previousMessages = await loadChatMessages(id);
+        messages = [...previousMessages, message];
+        await saveChatMessages(id, messages);
     }
 
     // Generate assistant message ID and create a database stub to avoid FK violation during step callbacks
@@ -63,10 +67,11 @@ export async function POST(req: Request) {
             role: "ASSISTANT",
             status: "PENDING",
             content: "",
+            parentId: message.id, // Link to the trigger user message
         }
     });
 
-    const result = streamText({
+    const result = await streamText({
         model: getChatModel(conversation.model),
         system: conversation.systemPrompt ?? "You are ChaiGPT, a helpful assistant",
         messages: await convertToModelMessages(messages),

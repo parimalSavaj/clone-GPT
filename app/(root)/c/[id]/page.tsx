@@ -6,13 +6,15 @@ import React from 'react'
 
 type ConversationPageProps = {
     params: Promise<{ id: string }>;
+    searchParams: Promise<{ m?: string }>;
 };
 
 /**
  * Conversation page — loads messages and renders the chat UI for a given ID.
  */
-const page = async({params}:ConversationPageProps) => {
-    const {id} = await params;
+const page = async({ params, searchParams }: ConversationPageProps) => {
+    const { id } = await params;
+    const { m } = await searchParams;
 
     try {
       await getConversation(id)
@@ -20,11 +22,11 @@ const page = async({params}:ConversationPageProps) => {
       notFound()
     }
 
-    const initialMessages = await loadChatMessages(id);
+    const initialMessages = await loadChatMessages(id, m);
 
     return (
       <ConversationView
-        key={id}
+        key={`${id}-${m || "active"}`}
         conversationId={id}
         initialMessages={initialMessages}
       />
