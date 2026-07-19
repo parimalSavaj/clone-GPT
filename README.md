@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ChaiGPT Streaming App
 
-## Getting Started
+A production-grade, highly polished chat interface cloned from ChatGPT with advanced features like **AI Tool Invocations (Web Search)** and **Conversation Path Branching**.
 
-First, run the development server:
+- **Live URL**: [https://clone-gpt-theta.vercel.app/](https://clone-gpt-theta.vercel.app/)
+- **Demo Video URL**: [Google Drive Link](https://drive.google.com/file/d/1EHuFmOR6WHEO8IY_kIfy7KYZEzxIUJpn/view?usp=sharing)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## Key Features
+
+### 1. AI Tools (Web Search)
+- **Tavily AI Search**: Instantly searches the web for queries requiring real-time facts and latest news.
+- **Collapsible Tool UI**: Streams execution status cards ("Searching...", "Complete", "Error") with details including queries, answers, sources, and links.
+- **In-Memory Caching**: Implements a 5-minute TTL cache on search queries to save Tavily quota and resolve duplicate searches instantly.
+
+### 2. Chat Branching
+- **Message Editing**: Hover over any user message to edit and branch the chat lineage.
+- **Path Divergence**: Fully structures sibling paths using self-referential model keys (`Message.parentId` relation), preserving separate sub-threads.
+- **ChatGPT-Style Pagination**: Seamlessly toggles sibling branches (`< N of M >`) inside the message toolbar.
+- **Auto-Trigger Generation**: Redirects leaf nodes safely and auto-resumes LLM stream reply on unanswered branch threads.
+- **Alt + Arrow Navigation**: Allows switching between branch sibling alternatives using **`Alt + ArrowLeft`** and **`Alt + ArrowRight`** shortcuts.
+
+---
+
+## Tech Stack
+- **Framework**: Next.js 16 (App Router)
+- **Auth**: Clerk (Next.js Middleware Proxy)
+- **Database**: PostgreSQL (Neon Serverless)
+- **ORM**: Prisma Client (with Custom generated client path support)
+- **Query Management**: TanStack React Query v5
+- **AI Integrations**: Vercel AI SDK, OpenRouter API (`google/gemini-2.5-flash`), Tavily AI Search SDK
+- **Styling**: Tailwind CSS & Radix UI
+
+---
+
+## Environment Variables
+
+Create a `.env.local` file in the root folder and add the following keys:
+
+```env
+# Database Configuration (Neon/PostgreSQL)
+DATABASE_URL="your-postgresql-connection-string"
+
+# Clerk Authentication Configuration
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+CLERK_SECRET_KEY=your_clerk_secret_key
+
+# Clerk Route Settings
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/
+
+# AI Provider Configuration (OpenRouter)
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+
+# Search Tool Integration (Tavily AI)
+TAVILY_API_KEY=your_tavily_api_key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Setup Instructions
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 1. Clone & Install Dependencies
+```bash
+git clone <your-repo-url>
+cd ChaiGPT-Streaming-App
+npm install
+```
 
-## Learn More
+### 2. Configure Database Schema
+Pushes schema models to your Neon database instance and builds client types:
+```bash
+npx prisma db push
+npx prisma generate
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 3. Start Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) to view the application locally.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. Build for Production
+Compiles types, styles, and assets:
+```bash
+npx next build
+```
