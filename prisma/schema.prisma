@@ -67,9 +67,32 @@ model Message {
   metadata       Json? 
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  toolCalls    ToolCall[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([conversationId, createdAt(sort: Desc)])
+}
+
+enum ToolCallStatus {
+  PENDING
+  COMPLETE
+  ERROR
+}
+
+model ToolCall {
+  id        String         @id @default(cuid())
+  messageId String
+  toolName  String
+  arguments Json
+  result    Json?
+  status    ToolCallStatus @default(PENDING)
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([messageId])
 }

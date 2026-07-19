@@ -1,5 +1,7 @@
 import { loadChatMessages, saveChatMessages } from "@/features/ai/actions/chat-store";
+import { saveToolCall, updateToolCallResult } from "@/features/ai/actions/tool-store";
 import { getChatModel } from "@/features/ai/utils/model";
+import { availableTools } from "@/features/ai/tools";
 import { requireUser } from "@/features/auth/actions/require-user";
 import { prisma } from "@/lib/db";
 import { auth } from "@clerk/nextjs/server";
@@ -9,14 +11,12 @@ import {
   createUIMessageStreamResponse, 
   streamText, 
   toUIMessageStream, 
+  isStepCount,
   type UIMessage 
 } from "ai";
 
 /**
- * POST /api/chat — Streams an AI assistant reply for a conversation.
- *
- * Validates auth and ownership, persists the user message, then streams the
- * assistant response via the AI SDK. Final messages are saved when the stream ends.
+ * POST /api/chat — Streams an AI assistant reply for a conversation (persisting tool calls).
  */
 export async function POST(req: Request) {
     await auth.protect();
@@ -52,10 +52,47 @@ export async function POST(req: Request) {
         await saveChatMessages(id, [message]);
     }
 
+    // Generate assistant message ID and create a database stub to avoid FK violation during step callbacks
+    const generateMessageId = createIdGenerator({ prefix: "msg", size: 16 });
+    const assistantMessageId = generateMessageId();
+
+    await prisma.message.create({
+        data: {
+            id: assistantMessageId,
+            conversationId: id,
+            role: "ASSISTANT",
+            status: "PENDING",
+            content: "",
+        }
+    });
+
     const result = streamText({
         model: getChatModel(conversation.model),
         system: conversation.systemPrompt ?? "You are ChaiGPT, a helpful assistant",
         messages: await convertToModelMessages(messages),
+        tools: availableTools,
+        stopWhen: isStepCount(5),
+        onStepEnd: async (event) => {
+            try {
+                // Save tool calls generated in this step
+                for (const call of event.toolCalls) {
+                    await saveToolCall({
+                        id: call.toolCallId,
+                        messageId: assistantMessageId,
+                        toolName: call.toolName,
+                        arguments: call.input,
+                    });
+                }
+
+                // Save tool execution results returned in this step
+                for (const res of event.toolResults) {
+                    const status = (res.output as any)?.error ? "ERROR" : "COMPLETE";
+                    await updateToolCallResult(res.toolCallId, res.output, status);
+                }
+            } catch (dbError) {
+                console.error("Failed to log tool execution to database:", dbError);
+            }
+        }
     });
 
     result.consumeStream();
@@ -63,8 +100,9 @@ export async function POST(req: Request) {
     return createUIMessageStreamResponse({
         stream: toUIMessageStream({
            stream: result.stream,
+           tools: availableTools,
            originalMessages: messages,
-           generateMessageId: createIdGenerator({ prefix: "msg", size: 16 }),
+           generateMessageId: () => assistantMessageId,
            onEnd: async ({ messages: finalMessages }) => {
             try {
                 await saveChatMessages(id, finalMessages, { updateTitle: true });
