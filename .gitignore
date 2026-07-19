@@ -1,1 +1,4 @@
 /GUIDE
+
+.env.local
+.env.production
